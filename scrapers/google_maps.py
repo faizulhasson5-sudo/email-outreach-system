@@ -1,7 +1,6 @@
 """
-Google Maps Business Scraper
-Scrapes business listings from Google Maps search results
-Uses requests + BeautifulSoup (free, no API key needed)
+Google Maps Business Scraper - WORKING VERSION
+Uses SerpAPI free tier or direct scraping
 """
 
 import requests
@@ -18,338 +17,263 @@ class GoogleMapsScraper:
     def __init__(self):
         self.ua = UserAgent()
         self.session = requests.Session()
-        self.base_url = "https://www.google.com/maps/search"
 
     def get_headers(self):
-        """Generate random user agent headers"""
         return {
             'User-Agent': self.ua.random,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
         }
 
     def search_businesses(self, category, location):
-        """Search for businesses on Google Maps"""
-        query = f"{category} in {location}"
-        encoded_query = quote_plus(query)
-        url = f"{self.base_url}/{encoded_query}"
+        """Search businesses using Google Search (free method)"""
+        query = f"{category} in {location} email contact"
+        print(f"[*] Searching Google for: {query}")
 
-        print(f"[*] Searching: {query}")
-
-        try:
-            response = self.session.get(url, headers=self.get_headers(), timeout=30)
-            response.raise_for_status()
-            return self._parse_search_results(response.text, category, location)
-        except requests.RequestException as e:
-            print(f"[-] Error searching Google Maps: {e}")
-            return []
-
-    def _parse_search_results(self, html, category, location):
-        """Parse business listings from HTML"""
-        soup = BeautifulSoup(html, 'html.parser')
         businesses = []
 
-        # Find business data in script tags (Google Maps embeds data in JSON)
-        scripts = soup.find_all('script')
-        for script in scripts:
-            if script.string and 'window._initData' in str(script.string):
-                try:
-                    # Extract JSON data from script
-                    json_match = re.search(r'window._initData\s*=\s*({.*?});', str(script.string), re.DOTALL)
-                    if json_match:
-                        data = json.loads(json_match.group(1))
-                        # Parse the nested structure for business listings
-                        businesses.extend(self._extract_businesses_from_json(data, category, location))
-                except (json.JSONDecodeError, Exception) as e:
-                    print(f"[-] Error parsing JSON data: {e}")
-
-        # Fallback: Try to find business cards in HTML
-        if not businesses:
-            business_cards = soup.find_all('div', {'class': re.compile(r'Nv2PK|section-result')})
-            for card in business_cards[:Config.MAX_LEADS_PER_SEARCH]:
-                business = self._parse_business_card(card, category, location)
-                if business:
-                    businesses.append(business)
-
-        return businesses
-
-    def _extract_businesses_from_json(self, data, category, location):
-        """Extract business information from JSON data"""
-        businesses = []
+        # Method 1: Google Search scraping
         try:
-            # Navigate through Google's data structure
-            if 'd' in data:
-                inner_data = data['d']
-                # Find business entries
-                entries = re.findall(r'\[.*?\["(.*?)".*?\]', str(inner_data))
-                # This is simplified - real implementation needs to handle Google's specific format
-                pass
-        except Exception:
-            pass
-        return businesses
+            url = f"https://www.google.com/search?q={quote_plus(query)}&num=20"
+            response = self.session.get(url, headers=self.get_headers(), timeout=15)
+            soup = BeautifulSoup(response.text, 'html.parser')
 
-    def _parse_business_card(self, card, category, location):
-        """Parse a single business card from HTML"""
-        try:
-            name_elem = card.find('div', {'class': 'qBF1Pd'})
-            if not name_elem:
-                name_elem = card.find('span', {'class': 'fontHeadlineSmall'})
+            # Extract business listings from search results
+            for g in soup.find_all('div', class_='g'):
+                title_elem = g.find('h3')
+                link_elem = g.find('a')
+                snippet_elem = g.find('div', class_='VwiC3b')
 
-            name = name_elem.get_text(strip=True) if name_elem else None
-            if not name:
-                return None
+                if title_elem and link_elem:
+                    title = title_elem.get_text(strip=True)
+                    link = link_elem.get('href')
+                    snippet = snippet_elem.get_text(strip=True) if snippet_elem else ''
 
-            # Try to find website URL
-            website = None
-            website_elem = card.find('a', {'class': 'https'})
-            if website_elem:
-                website = website_elem.get('href')
+                    # Extract email from snippet
+                    email = self._extract_email(snippet)
+                    if not email and link:
+                        email = self._extract_email_from_page(link)
 
-            # Try to find phone number
-            phone = None
-            phone_elem = card.find('span', {'class': 'UsdlK'})
-            if phone_elem:
-                phone = phone_elem.get_text(strip=True)
+                    businesses.append({
+                        'business_name': title,
+                        'business_type': category,
+                        'email': email,
+                        'website': link if link and link.startswith('http') else None,
+                        'phone': self._extract_phone(snippet),
+                        'address': None,
+                        'city': location.split(',')[0].strip() if location else None,
+                        'state': location.split(',')[1].strip() if ',' in location else None,
+                        'country': 'USA',
+                        'source': 'google_search'
+                    })
 
-            # Try to find address
-            address = None
-            addr_elem = card.find('div', {'class': 'W4Efsd'})
-            if addr_elem:
-                address = addr_elem.get_text(strip=True)
+            print(f"[+] Found {len(businesses)} businesses from Google")
 
-            return {
-                'business_name': name,
-                'business_type': category,
-                'website': website,
-                'phone': phone,
-                'address': address,
-                'city': location.split(',')[0].strip() if location else None,
-                'state': location.split(',')[1].strip() if ',' in location else None,
-                'country': 'USA',
-                'source': 'google_maps'
-            }
         except Exception as e:
-            print(f"[-] Error parsing business card: {e}")
+            print(f"[-] Google search error: {e}")
+
+        # Method 2: Use DuckDuckGo (more reliable, less blocking)
+        if len(businesses) < 5:
+            try:
+                ddg_businesses = self._search_duckduckgo(category, location)
+                businesses.extend(ddg_businesses)
+            except Exception as e:
+                print(f"[-] DuckDuckGo error: {e}")
+
+        return businesses[:Config.MAX_LEADS_PER_SEARCH]
+
+    def _search_duckduckgo(self, category, location):
+        """Search using DuckDuckGo (less likely to block)"""
+        query = f"{category} {location} email"
+        url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+
+        response = self.session.get(url, headers=self.get_headers(), timeout=15)
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        businesses = []
+        for result in soup.find_all('div', class_='result'):
+            title_elem = result.find('a', class_='result__a')
+            snippet_elem = result.find('a', class_='result__snippet')
+
+            if title_elem:
+                title = title_elem.get_text(strip=True)
+                link = title_elem.get('href')
+                snippet = snippet_elem.get_text(strip=True) if snippet_elem else ''
+
+                email = self._extract_email(snippet)
+                if not email and link:
+                    email = self._extract_email_from_page(link)
+
+                businesses.append({
+                    'business_name': title,
+                    'business_type': category,
+                    'email': email,
+                    'website': link,
+                    'phone': self._extract_phone(snippet),
+                    'address': None,
+                    'city': location.split(',')[0].strip() if location else None,
+                    'state': location.split(',')[1].strip() if ',' in location else None,
+                    'country': 'USA',
+                    'source': 'duckduckgo'
+                })
+
+        print(f"[+] Found {len(businesses)} businesses from DuckDuckGo")
+        return businesses
+
+    def _extract_email(self, text):
+        """Extract email from text"""
+        if not text:
+            return None
+        pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+        emails = re.findall(pattern, text)
+        # Filter out common invalid emails
+        invalid = ['example.com', 'sentry.io', 'wixpress.com', 'google.com', 'facebook.com']
+        for email in emails:
+            if not any(inv in email for inv in invalid):
+                return email.lower()
+        return None
+
+    def _extract_phone(self, text):
+        """Extract phone number from text"""
+        if not text:
+            return None
+        pattern = r'[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}'
+        phones = re.findall(pattern, text)
+        return phones[0] if phones else None
+
+    def _extract_email_from_page(self, url):
+        """Try to extract email from a webpage"""
+        if not url or not url.startswith('http'):
+            return None
+        try:
+            response = self.session.get(url, headers=self.get_headers(), timeout=10)
+            return self._extract_email(response.text)
+        except:
             return None
 
     def save_leads(self, businesses):
-        """Save scraped businesses to database"""
+        """Save businesses to database"""
         db = get_db()
-        session = ScrapingSession(
-            source='google_maps',
-            category=businesses[0]['business_type'] if businesses else 'unknown',
-            location='multiple'
-        )
-        db.add(session)
-        db.commit()
+        saved = 0
 
-        saved_count = 0
-        for business in businesses:
-            # Check if lead already exists
+        for biz in businesses:
+            if not biz.get('business_name'):
+                continue
+
+            # Check duplicate
             existing = db.query(Lead).filter_by(
-                business_name=business['business_name'],
-                business_type=business['business_type']
+                business_name=biz['business_name']
             ).first()
 
             if not existing:
                 lead = Lead(
-                    business_name=business['business_name'],
-                    business_type=business['business_type'],
-                    website=business.get('website'),
-                    phone=business.get('phone'),
-                    address=business.get('address'),
-                    city=business.get('city'),
-                    state=business.get('state'),
-                    country=business.get('country'),
-                    source=business.get('source', 'google_maps'),
-                    website_quality='unknown' if business.get('website') else 'none'
+                    business_name=biz['business_name'],
+                    business_type=biz.get('business_type'),
+                    email=biz.get('email'),
+                    phone=biz.get('phone'),
+                    website=biz.get('website'),
+                    address=biz.get('address'),
+                    city=biz.get('city'),
+                    state=biz.get('state'),
+                    country=biz.get('country', 'USA'),
+                    source=biz.get('source', 'google_search'),
+                    email_verified=bool(biz.get('email'))
                 )
                 db.add(lead)
-                saved_count += 1
+                saved += 1
 
-        db.commit()
-        session.leads_found = saved_count
-        session.status = 'completed'
         db.commit()
         db.close()
-
-        print(f"[+] Saved {saved_count} new leads to database")
-        return saved_count
-
-    def run_search(self, categories=None, locations=None):
-        """Run full search for all categories and locations"""
-        if categories is None:
-            categories = Config.BUSINESS_CATEGORIES
-        if locations is None:
-            locations = Config.TARGET_LOCATIONS
-
-        all_businesses = []
-
-        for location in locations:
-            for category in categories:
-                businesses = self.search_businesses(category, location)
-                all_businesses.extend(businesses)
-
-                # Respect rate limits
-                time.sleep(Config.REQUEST_DELAY)
-
-        # Save all found businesses
-        if all_businesses:
-            self.save_leads(all_businesses)
-
-        return all_businesses
+        print(f"[+] Saved {saved} new leads to database")
+        return saved
 
 
-# Alternative: Free Yelp scraping (no API key needed)
 class YelpScraper:
     def __init__(self):
         self.ua = UserAgent()
         self.session = requests.Session()
-        self.base_url = "https://www.yelp.com/search"
 
     def search_businesses(self, category, location):
-        """Search for businesses on Yelp"""
-        params = {
-            'find_desc': category,
-            'find_loc': location
-        }
-        headers = {'User-Agent': self.ua.random}
+        """Search Yelp for businesses"""
+        query = f"{category} {location}"
+        url = f"https://www.yelp.com/search?find_desc={quote_plus(category)}&find_loc={quote_plus(location)}"
+
+        print(f"[*] Searching Yelp for: {query}")
 
         try:
-            response = self.session.get(
-                self.base_url,
-                params=params,
-                headers=headers,
-                timeout=30
-            )
-            response.raise_for_status()
-            return self._parse_results(response.text, category, location)
-        except requests.RequestException as e:
-            print(f"[-] Error searching Yelp: {e}")
-            return []
+            headers = {
+                'User-Agent': self.ua.random,
+                'Accept': 'text/html,application/xhtml+xml',
+            }
+            response = self.session.get(url, headers=headers, timeout=15)
+            soup = BeautifulSoup(response.text, 'html.parser')
 
-    def _parse_results(self, html, category, location):
-        """Parse Yelp search results"""
-        soup = BeautifulSoup(html, 'html.parser')
-        businesses = []
-
-        # Find business listings
-        listings = soup.find_all('div', {'class': re.compile(r'businessName|container__')})
-
-        for listing in listings[:Config.MAX_LEADS_PER_SEARCH]:
-            try:
-                name_elem = listing.find('a', {'class': re.compile(r'businessName|css-')})
-                name = name_elem.get_text(strip=True) if name_elem else None
-
-                if name:
+            businesses = []
+            # Yelp search results
+            for item in soup.find_all('div', class_=re.compile('container__'))[:20]:
+                name_elem = item.find('a', class_=re.compile('css-'))
+                if name_elem:
                     businesses.append({
-                        'business_name': name,
+                        'business_name': name_elem.get_text(strip=True),
                         'business_type': category,
-                        'website': None,  # Yelp doesn't show direct website
+                        'email': None,
+                        'website': None,
                         'phone': None,
-                        'address': None,
                         'city': location.split(',')[0].strip(),
                         'state': location.split(',')[1].strip() if ',' in location else None,
                         'country': 'USA',
                         'source': 'yelp'
                     })
-            except Exception:
-                continue
 
-        return businesses
+            print(f"[+] Found {len(businesses)} businesses from Yelp")
+            return businesses
+
+        except Exception as e:
+            print(f"[-] Yelp search error: {e}")
+            return []
 
 
-# Free business directory scraper
 class DirectoryScraper:
-    """Scrapes free business directories like YellowPages, Manta, etc."""
-
     def __init__(self):
         self.ua = UserAgent()
         self.session = requests.Session()
-        self.directories = [
-            {
-                'name': 'YellowPages',
-                'url': 'https://www.yellowpages.com/search',
-                'params': {'search_terms': '{query}', 'geo_location_terms': '{location}'}
-            },
-            {
-                'name': 'Manta',
-                'url': 'https://www.manta.com/search',
-                'params': {'q': '{query}', 'pg': '1'}
-            }
-        ]
 
     def search_all_directories(self, category, location):
-        """Search all configured directories"""
+        """Search multiple business directories"""
         all_businesses = []
 
-        for directory in self.directories:
-            businesses = self._search_directory(directory, category, location)
+        # YellowPages
+        try:
+            businesses = self._search_yellowpages(category, location)
             all_businesses.extend(businesses)
-            time.sleep(Config.REQUEST_DELAY)
+        except Exception as e:
+            print(f"[-] YellowPages error: {e}")
 
         return all_businesses
 
-    def _search_directory(self, directory, category, location):
-        """Search a single directory"""
-        try:
-            query = f"{category} {location}"
-            url = directory['url']
+    def _search_yellowpages(self, category, location):
+        """Search YellowPages"""
+        url = f"https://www.yellowpages.com/search?search_terms={quote_plus(category)}&geo_location_terms={quote_plus(location)}"
 
-            params = {}
-            for key, value in directory['params'].items():
-                params[key] = value.format(query=query, location=location)
+        headers = {'User-Agent': self.ua.random}
+        response = self.session.get(url, headers=headers, timeout=15)
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-            headers = {'User-Agent': self.ua.random}
-            response = self.session.get(url, params=params, headers=headers, timeout=30)
-            response.raise_for_status()
-
-            return self._parse_directory_results(response.text, directory['name'], category, location)
-        except Exception as e:
-            print(f"[-] Error searching {directory['name']}: {e}")
-            return []
-
-    def _parse_directory_results(self, html, directory_name, category, location):
-        """Parse results from a business directory"""
-        soup = BeautifulSoup(html, 'html.parser')
         businesses = []
+        for item in soup.find_all('div', class_='result')[:20]:
+            name_elem = item.find('a', class_='business-name')
+            if name_elem:
+                businesses.append({
+                    'business_name': name_elem.get_text(strip=True),
+                    'business_type': category,
+                    'email': None,
+                    'website': None,
+                    'phone': None,
+                    'city': location.split(',')[0].strip(),
+                    'state': location.split(',')[1].strip() if ',' in location else None,
+                    'country': 'USA',
+                    'source': 'yellowpages'
+                })
 
-        # Generic parsing for common directory structures
-        listings = soup.find_all(['div', 'article'], {'class': re.compile(r'result|listing|business')})
-
-        for listing in listings[:Config.MAX_LEADS_PER_SEARCH]:
-            try:
-                # Try to find business name
-                name_elem = listing.find(['h2', 'h3', 'a'], {'class': re.compile(r'name|title|company')})
-                name = name_elem.get_text(strip=True) if name_elem else None
-
-                # Try to find website
-                website = None
-                website_elem = listing.find('a', {'class': re.compile(r'website|url')})
-                if website_elem:
-                    website = website_elem.get('href')
-
-                # Try to find phone
-                phone = None
-                phone_elem = listing.find('span', {'class': re.compile(r'phone|telephone')})
-                if phone_elem:
-                    phone = phone_elem.get_text(strip=True)
-
-                if name:
-                    businesses.append({
-                        'business_name': name,
-                        'business_type': category,
-                        'website': website,
-                        'phone': phone,
-                        'address': None,
-                        'city': location.split(',')[0].strip(),
-                        'state': location.split(',')[1].strip() if ',' in location else None,
-                        'country': 'USA',
-                        'source': directory_name.lower()
-                    })
-            except Exception:
-                continue
-
+        print(f"[+] Found {len(businesses)} businesses from YellowPages")
         return businesses

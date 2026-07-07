@@ -1,7 +1,10 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from project root
+project_root = Path(__file__).parent
+load_dotenv(project_root / '.env')
 
 class Config:
     # SMTP Settings

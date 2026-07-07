@@ -7,7 +7,6 @@
     <h1>Leads Management</h1>
     <div>
         <button class="btn btn-primary" onclick="openModal('addLeadModal')">+ Add Lead</button>
-        <button class="btn btn-secondary" onclick="openModal('importLeadsModal')">Import CSV</button>
     </div>
 </div>
 
@@ -15,14 +14,14 @@
     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
         <a href="/leads?status=all" class="btn btn-{{ 'primary' if status == 'all' else 'secondary' }}">All ({{ total }})</a>
         <a href="/leads?status=no_email" class="btn btn-{{ 'primary' if status == 'no_email' else 'secondary' }}">No Email</a>
-        <a href="/leads?status=has_email" class="btn btn-{{ 'primary' if status == 'has_email' else 'secondary' }}">Has Email</a>
+        <a href="/leads?status=has_email" class="btn btn-{{ 'primary' if status == 'has_email' else 'secondary' }}">Has Email (Ready)</a>
         <a href="/leads?status=sent" class="btn btn-{{ 'primary' if status == 'sent' else 'secondary' }}">Sent</a>
         <a href="/leads?status=opened" class="btn btn-{{ 'primary' if status == 'opened' else 'secondary' }}">Opened</a>
-        <a href="/leads?status=replied" class="btn btn-{{ 'primary' if status == 'replied' else 'secondary' }}">Replied</a>
     </div>
 </div>
 
 <div class="card">
+    {% if leads %}
     <table>
         <thead>
             <tr>
@@ -31,61 +30,48 @@
                 <th>Type</th>
                 <th>Email</th>
                 <th>City</th>
-                <th>Website</th>
                 <th>Status</th>
-                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
             {% for lead in leads %}
             <tr>
-                <td><input type="checkbox" class="lead-checkbox" value="{{ lead.id }}"></td>
+                <td><input type="checkbox" class="lead-checkbox" value="{{ lead.id }}" data-email="{{ lead.email or '' }}"></td>
                 <td><strong>{{ lead.business_name }}</strong></td>
                 <td>{{ lead.business_type or '-' }}</td>
-                <td>{{ lead.email or '-' }}</td>
+                <td>{{ lead.email or '<span style="color:#999">No email</span>'|safe }}</td>
                 <td>{{ lead.city or '-' }}</td>
-                <td>
-                    {% if lead.website %}
-                        <a href="{{ lead.website }}" target="_blank">Visit</a>
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
                 <td>
                     {% if lead.email_sent %}
                         <span class="badge badge-success">Sent</span>
                     {% elif lead.email %}
-                        <span class="badge badge-info">Has Email</span>
+                        <span class="badge badge-info">Ready</span>
                     {% else %}
                         <span class="badge badge-warning">No Email</span>
                     {% endif %}
-                </td>
-                <td>
-                    <form action="/leads/delete/{{ lead.id }}" method="POST" style="display: inline;">
-                        <button type="submit" class="btn btn-danger" style="padding: 5px 10px;" onclick="return confirm('Delete this lead?')">Delete</button>
-                    </form>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 
-    {% if total > per_page %}
-    <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px;">
-        {% if page > 1 %}
-        <a href="/leads?page={{ page - 1 }}&status={{ status }}" class="btn btn-secondary">Previous</a>
-        {% endif %}
-        <span style="padding: 10px;">Page {{ page }} of {{ (total / per_page) | ceil }}</span>
-        {% if page * per_page < total %}
-        <a href="/leads?page={{ page + 1 }}&status={{ status }}" class="btn btn-secondary">Next</a>
-        {% endif %}
+    <div style="margin-top: 20px; display: flex; gap: 10px;">
+        <button class="btn btn-primary" id="sendBtn" disabled onclick="sendSelectedLeads()">
+            Send Emails to Selected
+        </button>
+        <span id="selectedCount" style="padding: 10px; color: #666;"></span>
     </div>
+
+    {% else %}
+    <p style="text-align: center; padding: 40px; color: #666;">No leads found. Start scraping to find businesses!</p>
     {% endif %}
 </div>
 
-<div style="margin-top: 20px;">
-    <button class="btn btn-primary" id="sendSelectedBtn" disabled onclick="sendSelectedLeads()">Send to Selected</button>
-    <button class="btn btn-secondary" onclick="verifySelectedEmails()">Verify Selected Emails</button>
+<div id="sendResult" style="display: none; margin-top: 20px;">
+    <div class="card">
+        <h2>Send Results</h2>
+        <div id="sendResultContent"></div>
+    </div>
 </div>
 
 <!-- Add Lead Modal -->
@@ -114,14 +100,6 @@
                     <option value="real estate agents">Real Estate Agents</option>
                     <option value="lawyers">Lawyers</option>
                     <option value="accountants">Accountants</option>
-                    <option value="gyms">Gyms</option>
-                    <option value="salons">Salons</option>
-                    <option value="spas">Spas</option>
-                    <option value="photographers">Photographers</option>
-                    <option value="roofers">Roofers</option>
-                    <option value="painters">Painters</option>
-                    <option value="movers">Movers</option>
-                    <option value="hvac">HVAC</option>
                 </select>
             </div>
             <div class="grid-2">
@@ -138,10 +116,6 @@
                 <label>Website</label>
                 <input type="url" name="website" class="form-control" placeholder="https://...">
             </div>
-            <div class="form-group">
-                <label>Address</label>
-                <input type="text" name="address" class="form-control">
-            </div>
             <div class="grid-2">
                 <div class="form-group">
                     <label>City</label>
@@ -157,56 +131,81 @@
     </div>
 </div>
 
-<!-- Import CSV Modal -->
-<div class="modal" id="importLeadsModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2>Import Leads from CSV</h2>
-            <button class="close" onclick="closeModal('importLeadsModal')">&times;</button>
-        </div>
-        <form action="/leads/import" method="POST" enctype="multipart/form-data">
-            <div class="form-group">
-                <label>CSV File</label>
-                <input type="file" name="csv_file" class="form-control" accept=".csv" required>
-                <small style="color: #666;">Columns: business_name, business_type, email, phone, website, city, state</small>
-            </div>
-            <button type="submit" class="btn btn-primary" style="width: 100%;">Import</button>
-        </form>
-    </div>
-</div>
-
 <script>
     // Select all checkbox
-    document.getElementById('selectAll').addEventListener('change', function() {
+    document.getElementById('selectAll')?.addEventListener('change', function() {
         document.querySelectorAll('.lead-checkbox').forEach(cb => {
             cb.checked = this.checked;
         });
         updateSendButton();
     });
 
-    // Update send button state
+    // Update send button on checkbox change
     document.querySelectorAll('.lead-checkbox').forEach(cb => {
         cb.addEventListener('change', updateSendButton);
     });
 
     function updateSendButton() {
         const checked = document.querySelectorAll('.lead-checkbox:checked').length;
-        document.getElementById('sendSelectedBtn').disabled = checked === 0;
+        const withEmail = document.querySelectorAll('.lead-checkbox:checked[data-email]:not([data-email=""])').length;
+        document.getElementById('sendBtn').disabled = withEmail === 0;
+        document.getElementById('selectedCount').textContent = `${withEmail} leads with email selected`;
     }
 
-    function sendSelectedLeads() {
-        const leadIds = Array.from(document.querySelectorAll('.lead-checkbox:checked')).map(cb => parseInt(cb.value));
-        if (confirm(`Send emails to ${leadIds.length} leads?`)) {
-            apiCall('/api/send', 'POST', { lead_ids: leadIds }).then(result => {
-                alert(JSON.stringify(result));
-                location.reload();
-            });
+    async function sendSelectedLeads() {
+        const checkboxes = document.querySelectorAll('.lead-checkbox:checked');
+        const leadIds = [];
+        
+        checkboxes.forEach(cb => {
+            if (cb.dataset.email) {
+                leadIds.push(parseInt(cb.value));
+            }
+        });
+
+        if (leadIds.length === 0) {
+            alert('No leads with email addresses selected!');
+            return;
         }
-    }
 
-    function verifySelectedEmails() {
-        const leadIds = Array.from(document.querySelectorAll('.lead-checkbox:checked')).map(cb => parseInt(cb.value));
-        alert(`Verify emails for ${leadIds.length} leads (feature coming soon)`);
+        if (!confirm(`Send emails to ${leadIds.length} leads?`)) return;
+
+        const btn = document.getElementById('sendBtn');
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+
+        try {
+            const response = await fetch('/api/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lead_ids: leadIds })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                alert('Error: ' + data.error);
+            } else {
+                const resultDiv = document.getElementById('sendResult');
+                const content = document.getElementById('sendResultContent');
+                
+                let html = `<p><strong>Sent: ${data.sent} / ${data.total}</strong></p><table style="width:100%"><tr><th>Business</th><th>Email</th><th>Status</th></tr>`;
+                
+                data.results.forEach(r => {
+                    html += `<tr><td>${r.business_name || '-'}</td><td>${r.email || '-'}</td><td><span class="badge badge-${r.success ? 'success' : 'danger'}">${r.message}</span></td></tr>`;
+                });
+                
+                html += '</table>';
+                content.innerHTML = html;
+                resultDiv.style.display = 'block';
+                
+                setTimeout(() => location.reload(), 2000);
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Send Emails to Selected';
     }
 </script>
 {% endblock %}

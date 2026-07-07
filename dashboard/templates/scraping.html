@@ -14,9 +14,9 @@
             <div class="form-group">
                 <label>Source</label>
                 <select name="source" class="form-control" id="scrapeSource">
-                    <option value="google_maps">Google Maps</option>
+                    <option value="google_maps">Google Search (Recommended)</option>
                     <option value="yelp">Yelp</option>
-                    <option value="directory">Business Directories</option>
+                    <option value="directory">YellowPages</option>
                 </select>
             </div>
             <div class="form-group">
@@ -44,31 +44,41 @@
                 </select>
             </div>
             <div class="form-group">
-                <label>Location</label>
+                <label>Location (City, State)</label>
                 <input type="text" name="location" class="form-control" placeholder="e.g., New York, NY" required>
             </div>
-            <button type="submit" class="btn btn-primary" style="width: 100%;">Start Scraping</button>
+            <button type="submit" class="btn btn-primary" id="scrapeBtn" style="width: 100%;">
+                Start Scraping
+            </button>
         </form>
+        <div id="scrapeStatus" style="margin-top: 15px; display: none;">
+            <div style="padding: 15px; background: #d4edda; border-radius: 5px;">
+                <strong id="scrapeResult"></strong>
+            </div>
+        </div>
     </div>
 
     <div class="card">
         <h2>Quick Scrape Templates</h2>
-        <p style="color: #666; margin-bottom: 15px;">Click a template to start scraping</p>
+        <p style="color: #666; margin-bottom: 15px;">Click a button to start scraping immediately</p>
         <div style="display: flex; flex-direction: column; gap: 10px;">
-            <button class="btn btn-secondary" onclick="quickScrape('restaurants', 'New York, NY')">
+            <button class="btn btn-secondary quick-scrape" data-category="restaurants" data-location="New York, NY">
                 Restaurants in NYC
             </button>
-            <button class="btn btn-secondary" onclick="quickScrape('dentists', 'Los Angeles, CA')">
+            <button class="btn btn-secondary quick-scrape" data-category="dentists" data-location="Los Angeles, CA">
                 Dentists in LA
             </button>
-            <button class="btn btn-secondary" onclick="quickScrape('plumbers', 'Chicago, IL')">
+            <button class="btn btn-secondary quick-scrape" data-category="plumbers" data-location="Chicago, IL">
                 Plumbers in Chicago
             </button>
-            <button class="btn btn-secondary" onclick="quickScrape('electricians', 'Houston, TX')">
+            <button class="btn btn-secondary quick-scrape" data-category="electricians" data-location="Houston, TX">
                 Electricians in Houston
             </button>
-            <button class="btn btn-secondary" onclick="quickScrape('landscaping', 'Phoenix, AZ')">
+            <button class="btn btn-secondary quick-scrape" data-category="landscaping" data-location="Phoenix, AZ">
                 Landscaping in Phoenix
+            </button>
+            <button class="btn btn-secondary quick-scrape" data-category="cleaning services" data-location="Miami, FL">
+                Cleaning Services in Miami
             </button>
         </div>
     </div>
@@ -76,67 +86,97 @@
 
 <div class="card" style="margin-top: 20px;">
     <h2>Recent Scraping Sessions</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Source</th>
-                <th>Category</th>
-                <th>Location</th>
-                <th>Leads Found</th>
-                <th>Status</th>
-                <th>Started</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for session in sessions %}
-            <tr>
-                <td>{{ session.source }}</td>
-                <td>{{ session.category }}</td>
-                <td>{{ session.location or '-' }}</td>
-                <td>{{ session.leads_found }}</td>
-                <td>
-                    <span class="badge badge-{{ 'success' if session.status == 'completed' else 'warning' if session.status == 'running' else 'danger' }}">
-                        {{ session.status }}
-                    </span>
-                </td>
-                <td>{{ session.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div id="sessionsList">
+        {% if sessions %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Source</th>
+                    <th>Category</th>
+                    <th>Location</th>
+                    <th>Leads Found</th>
+                    <th>Status</th>
+                    <th>Started</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for session in sessions %}
+                <tr>
+                    <td>{{ session.source }}</td>
+                    <td>{{ session.category }}</td>
+                    <td>{{ session.location or '-' }}</td>
+                    <td>{{ session.leads_found }}</td>
+                    <td>
+                        <span class="badge badge-{{ 'success' if session.status == 'completed' else 'warning' if session.status == 'running' else 'danger' }}">
+                            {{ session.status }}
+                        </span>
+                    </td>
+                    <td>{{ session.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="text-align: center; padding: 30px; color: #666;">No scraping sessions yet. Start your first scrape above!</p>
+        {% endif %}
+    </div>
 </div>
 
 <script>
-    document.getElementById('scrapeForm').addEventListener('submit', function(e) {
+    // Form submit
+    document.getElementById('scrapeForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         const formData = new FormData(this);
         const data = Object.fromEntries(formData);
+        await startScraping(data);
+    });
 
-        fetch('/scraping/start', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
-        .then(res => res.json())
-        .then(result => {
-            alert(`Scraping started! Source: ${result.source}, Category: ${result.category}`);
-            location.reload();
+    // Quick scrape buttons
+    document.querySelectorAll('.quick-scrape').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const data = {
+                source: 'google_maps',
+                category: this.dataset.category,
+                location: this.dataset.location
+            };
+            await startScraping(data);
         });
     });
 
-    function quickScrape(category, location) {
-        if (confirm(`Start scraping ${category} in ${location}?`)) {
-            fetch('/scraping/start', {
+    async function startScraping(data) {
+        const btn = document.getElementById('scrapeBtn');
+        const status = document.getElementById('scrapeStatus');
+        const result = document.getElementById('scrapeResult');
+
+        btn.disabled = true;
+        btn.textContent = 'Scraping...';
+        status.style.display = 'block';
+        status.querySelector('div').style.background = '#fff3cd';
+        result.textContent = 'Searching for businesses... Please wait.';
+
+        try {
+            const response = await fetch('/scraping/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ source: 'google_maps', category, location })
-            })
-            .then(res => res.json())
-            .then(result => {
-                alert('Scraping started! Check the sessions table for progress.');
-                location.reload();
+                body: JSON.stringify(data)
             });
+
+            const result_data = await response.json();
+
+            if (result_data.status === 'completed') {
+                status.querySelector('div').style.background = '#d4edda';
+                result.innerHTML = `<strong>Found ${result_data.found} businesses!</strong><br>Category: ${data.category}<br>Location: ${data.location}`;
+            } else {
+                status.querySelector('div').style.background = '#f8d7da';
+                result.textContent = 'Error: ' + (result_data.error || 'Unknown error');
+            }
+        } catch (error) {
+            status.querySelector('div').style.background = '#f8d7da';
+            result.textContent = 'Error: ' + error.message;
         }
+
+        btn.disabled = false;
+        btn.textContent = 'Start Scraping';
     }
 </script>
 {% endblock %}

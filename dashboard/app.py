@@ -208,27 +208,56 @@ def scraping():
 def start_scraping():
     """Start a new scraping session"""
     from scrapers.google_maps import GoogleMapsScraper, YelpScraper, DirectoryScraper
-    import threading
 
     category = request.form.get('category')
     location = request.form.get('location')
     source = request.form.get('source', 'google_maps')
 
-    def run_scraping():
-        if source == 'google_maps':
-            scraper = GoogleMapsScraper()
-            scraper.search_businesses(category, location)
-        elif source == 'yelp':
-            scraper = YelpScraper()
-            scraper.search_businesses(category, location)
-        elif source == 'directory':
-            scraper = DirectoryScraper()
-            scraper.search_all_directories(category, location)
+    print(f"\n[*] Starting scrape: {category} in {location} via {source}")
 
-    thread = threading.Thread(target=run_scraping)
-    thread.start()
+    businesses = []
 
-    return jsonify({'status': 'started', 'source': source, 'category': category, 'location': location})
+    if source == 'google_maps':
+        scraper = GoogleMapsScraper()
+        businesses = scraper.search_businesses(category, location)
+        if businesses:
+            scraper.save_leads(businesses)
+    elif source == 'yelp':
+        scraper = YelpScraper()
+        businesses = scraper.search_businesses(category, location)
+    elif source == 'directory':
+        scraper = DirectoryScraper()
+        businesses = scraper.search_all_directories(category, location)
+
+    # Save to database
+    if businesses:
+        db = get_db()
+        for biz in businesses:
+            if biz.get('business_name'):
+                existing = db.query(Lead).filter_by(business_name=biz['business_name']).first()
+                if not existing:
+                    lead = Lead(
+                        business_name=biz['business_name'],
+                        business_type=biz.get('business_type', category),
+                        email=biz.get('email'),
+                        phone=biz.get('phone'),
+                        website=biz.get('website'),
+                        city=biz.get('city'),
+                        state=biz.get('state'),
+                        country='USA',
+                        source=source
+                    )
+                    db.add(lead)
+        db.commit()
+        db.close()
+
+    return jsonify({
+        'status': 'completed',
+        'found': len(businesses),
+        'source': source,
+        'category': category,
+        'location': location
+    })
 
 @app.route('/analytics')
 def analytics():
@@ -390,25 +419,48 @@ def api_send():
 
     db = get_db()
     leads = db.query(Lead).filter(Lead.id.in_(lead_ids)).all()
-    db.close()
 
     if not leads:
+        db.close()
         return jsonify({'error': 'No leads found'}), 404
 
-    personalizer = EmailPersonalizer()
     sender = EmailSender()
 
+    # Test connection first
+    if not sender.test_connection():
+        db.close()
+        return jsonify({'error': 'SMTP connection failed. Check your settings.'}), 500
+
+    personalizer = EmailPersonalizer()
     results = []
+
     for lead in leads:
+        if not lead.email:
+            results.append({'lead_id': lead.id, 'success': False, 'message': 'No email'})
+            continue
+
+        if lead.email_sent:
+            results.append({'lead_id': lead.id, 'success': False, 'message': 'Already sent'})
+            continue
+
         email_content = personalizer.generate_personalized_email(lead)
         success, message = sender.send_email(lead, email_content)
         results.append({
             'lead_id': lead.id,
+            'business_name': lead.business_name,
+            'email': lead.email,
             'success': success,
             'message': message
         })
 
-    return jsonify(results)
+    db.close()
+
+    sent_count = sum(1 for r in results if r['success'])
+    return jsonify({
+        'results': results,
+        'sent': sent_count,
+        'total': len(results)
+    })
 
 
 if __name__ == '__main__':
