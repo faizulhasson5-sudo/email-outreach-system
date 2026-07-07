@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Templates - Email Outreach System{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>Email Templates</h1>
+    <button class="btn btn-primary" onclick="openModal('createTemplateModal')">+ New Template</button>
+</div>
+
+<div class="card">
+    {% if templates %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Business Type</th>
+                <th>Subject</th>
+                <th>Times Used</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for template in templates %}
+            <tr>
+                <td><strong>{{ template.name }}</strong></td>
+                <td>{{ template.business_type or 'General' }}</td>
+                <td>{{ template.subject[:60] }}{% if template.subject|length > 60 %}...{% endif %}</td>
+                <td>{{ template.times_used }}</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 5px 10px;" onclick="previewTemplate({{ template.id }})">Preview</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="text-align: center; padding: 40px; color: #666;">No templates yet. Create your first template to get started!</p>
+    {% endif %}
+</div>
+
+<!-- Create Template Modal -->
+<div class="modal" id="createTemplateModal">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <h2>Create New Template</h2>
+            <button class="close" onclick="closeModal('createTemplateModal')">&times;</button>
+        </div>
+        <form action="/templates/create" method="POST">
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Template Name *</label>
+                    <input type="text" name="name" class="form-control" required placeholder="e.g., restaurants_v1">
+                </div>
+                <div class="form-group">
+                    <label>Business Type</label>
+                    <select name="business_type" class="form-control">
+                        <option value="">General (all types)</option>
+                        <option value="restaurants">Restaurants</option>
+                        <option value="dentists">Dentists</option>
+                        <option value="plumbers">Plumbers</option>
+                        <option value="electricians">Electricians</option>
+                        <option value="landscaping">Landscaping</option>
+                        <option value="cleaning services">Cleaning Services</option>
+                        <option value="auto repair">Auto Repair</option>
+                        <option value="real estate agents">Real Estate Agents</option>
+                        <option value="lawyers">Lawyers</option>
+                        <option value="accountants">Accountants</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Subject Line *</label>
+                <input type="text" name="subject" class="form-control" required placeholder="Use {{ business_name }} for personalization">
+            </div>
+            <div class="form-group">
+                <label>Email Body *</label>
+                <textarea name="body" class="form-control" rows="12" required placeholder="Write your email here. Use variables like {{ greeting }}, {{ business_name }}, {{ city }}, {{ benefits }}, {{ cta_text }}, {{ sender_name }}"></textarea>
+            </div>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                <strong>Available Variables:</strong>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 10px; font-size: 13px; color: #555;">
+                    <span>{{ "{{ business_name }}" }} - Business name</span>
+                    <span>{{ "{{ business_type }}" }} - Business type</span>
+                    <span>{{ "{{ city }}" }} - City</span>
+                    <span>{{ "{{ state }}" }} - State</span>
+                    <span>{{ "{{ greeting }}" }} - Random greeting</span>
+                    <span>{{ "{{ cta_text }}" }} - Call to action</span>
+                    <span>{{ "{{ sender_name }}" }} - Your name</span>
+                    <span>{{ "{{ sender_email }}" }} - Your email</span>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Create Template</button>
+        </form>
+    </div>
+</div>
+
+<script>
+function previewTemplate(templateId) {
+    alert('Preview functionality coming soon!');
+}
+</script>
+{% endblock %}

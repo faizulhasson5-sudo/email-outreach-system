@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Email Outreach System{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>Dashboard</h1>
+    <div style="display: flex; gap: 10px; align-items: center;">
+        <div id="systemControl" style="display: flex; align-items: center; gap: 10px; padding: 10px 15px; background: {% if system_status.running %}#d4edda{% else %}#f8d7da{% endif %}; border-radius: 8px;">
+            <span style="font-weight: 500; color: {% if system_status.running %}#155724{% else %}#721c24{% endif %};">
+                System: <strong>{% if system_status.running %}ON{% else %}OFF{% endif %}</strong>
+            </span>
+            <button id="systemToggle" class="btn {% if system_status.running %}btn-danger{% else %}btn-primary{% endif %}" 
+                    onclick="toggleSystem()" style="padding: 8px 16px;">
+                {% if system_status.running %}Pause{% else %}Start{% endif %}
+            </button>
+        </div>
+        <button class="btn btn-primary" onclick="openModal('addLeadModal')">+ Add Lead</button>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <h3>Total Leads</h3>
+        <div class="value">{{ total_leads }}</div>
+        <div class="change">All time</div>
+    </div>
+    <div class="stat-card">
+        <h3>Leads with Email</h3>
+        <div class="value">{{ leads_with_email }}</div>
+        <div class="change">{{ ((leads_with_email / total_leads * 100) if total_leads > 0 else 0) | round(1) }}% of total</div>
+    </div>
+    <div class="stat-card">
+        <h3>Emails Sent</h3>
+        <div class="value">{{ emails_sent }}</div>
+        <div class="change">{{ ((emails_sent / leads_with_email * 100) if leads_with_email > 0 else 0) | round(1) }}% delivery rate</div>
+    </div>
+    <div class="stat-card">
+        <h3>Emails Opened</h3>
+        <div class="value">{{ emails_opened }}</div>
+        <div class="change">{{ ((emails_opened / emails_sent * 100) if emails_sent > 0 else 0) | round(1) }}% open rate</div>
+    </div>
+    <div class="stat-card">
+        <h3>Replies</h3>
+        <div class="value">{{ emails_replied }}</div>
+        <div class="change">{{ ((emails_replied / emails_sent * 100) if emails_sent > 0 else 0) | round(1) }}% reply rate</div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <h2>Recent Leads</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Business</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lead in recent_leads %}
+                <tr>
+                    <td>{{ lead.business_name }}</td>
+                    <td>{{ lead.business_type or '-' }}</td>
+                    <td>
+                        {% if lead.email_sent %}
+                            <span class="badge badge-success">Sent</span>
+                        {% elif lead.email %}
+                            <span class="badge badge-info">Has Email</span>
+                        {% else %}
+                            <span class="badge badge-warning">No Email</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <a href="/leads" class="btn btn-secondary" style="margin-top: 15px;">View All Leads</a>
+    </div>
+
+    <div class="card">
+        <h2>Active Campaigns</h2>
+        {% if recent_campaigns %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Progress</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for campaign in recent_campaigns %}
+                <tr>
+                    <td>{{ campaign.name }}</td>
+                    <td>
+                        <span class="badge badge-{{ 'success' if campaign.status == 'active' else 'warning' }}">
+                            {{ campaign.status }}
+                        </span>
+                    </td>
+                    <td>{{ campaign.emails_sent }}/{{ campaign.total_leads }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: #666; text-align: center; padding: 20px;">No campaigns yet</p>
+        {% endif %}
+        <a href="/campaigns" class="btn btn-secondary" style="margin-top: 15px;">Manage Campaigns</a>
+    </div>
+</div>
+
+<!-- Add Lead Modal -->
+<div class="modal" id="addLeadModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Add New Lead</h2>
+            <button class="close" onclick="closeModal('addLeadModal')">&times;</button>
+        </div>
+        <form action="/leads/add" method="POST">
+            <div class="form-group">
+                <label>Business Name *</label>
+                <input type="text" name="business_name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Business Type</label>
+                <select name="business_type" class="form-control">
+                    <option value="">Select type...</option>
+                    <option value="restaurants">Restaurants</option>
+                    <option value="dentists">Dentists</option>
+                    <option value="plumbers">Plumbers</option>
+                    <option value="electricians">Electricians</option>
+                    <option value="landscaping">Landscaping</option>
+                    <option value="cleaning services">Cleaning Services</option>
+                    <option value="auto repair">Auto Repair</option>
+                    <option value="real estate agents">Real Estate Agents</option>
+                    <option value="lawyers">Lawyers</option>
+                    <option value="accountants">Accountants</option>
+                    <option value="gyms">Gyms</option>
+                    <option value="salons">Salons</option>
+                    <option value="spas">Spas</option>
+                    <option value="photographers">Photographers</option>
+                    <option value="roofers">Roofers</option>
+                    <option value="painters">Painters</option>
+                    <option value="movers">Movers</option>
+                    <option value="hvac">HVAC</option>
+                </select>
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" name="email" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="tel" name="phone" class="form-control">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Website</label>
+                <input type="url" name="website" class="form-control" placeholder="https://...">
+            </div>
+            <div class="form-group">
+                <label>Address</label>
+                <input type="text" name="address" class="form-control">
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>City</label>
+                    <input type="text" name="city" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>State</label>
+                    <input type="text" name="state" class="form-control">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Add Lead</button>
+        </form>
+    </div>
+</div>
+
+<script>
+async function toggleSystem() {
+    const btn = document.getElementById('systemToggle');
+    const control = document.getElementById('systemControl');
+    const isRunning = btn.textContent.trim() === 'Pause';
+    
+    const endpoint = isRunning ? '/api/system/stop' : '/api/system/start';
+    
+    try {
+        const response = await fetch(endpoint, { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.status === 'started') {
+            control.style.background = '#d4edda';
+            control.querySelector('span').innerHTML = 'System: <strong>ON</strong>';
+            control.querySelector('span').style.color = '#155724';
+            btn.textContent = 'Pause';
+            btn.className = 'btn btn-danger';
+        } else {
+            control.style.background = '#f8d7da';
+            control.querySelector('span').innerHTML = 'System: <strong>OFF</strong>';
+            control.querySelector('span').style.color = '#721c24';
+            btn.textContent = 'Start';
+            btn.className = 'btn btn-primary';
+        }
+    } catch (error) {
+        alert('Error toggling system: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

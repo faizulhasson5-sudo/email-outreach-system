@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Leads - Email Outreach System{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>Leads Management</h1>
+    <div>
+        <button class="btn btn-primary" onclick="openModal('addLeadModal')">+ Add Lead</button>
+        <button class="btn btn-secondary" onclick="openModal('importLeadsModal')">Import CSV</button>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom: 20px;">
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <a href="/leads?status=all" class="btn btn-{{ 'primary' if status == 'all' else 'secondary' }}">All ({{ total }})</a>
+        <a href="/leads?status=no_email" class="btn btn-{{ 'primary' if status == 'no_email' else 'secondary' }}">No Email</a>
+        <a href="/leads?status=has_email" class="btn btn-{{ 'primary' if status == 'has_email' else 'secondary' }}">Has Email</a>
+        <a href="/leads?status=sent" class="btn btn-{{ 'primary' if status == 'sent' else 'secondary' }}">Sent</a>
+        <a href="/leads?status=opened" class="btn btn-{{ 'primary' if status == 'opened' else 'secondary' }}">Opened</a>
+        <a href="/leads?status=replied" class="btn btn-{{ 'primary' if status == 'replied' else 'secondary' }}">Replied</a>
+    </div>
+</div>
+
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="selectAll"></th>
+                <th>Business Name</th>
+                <th>Type</th>
+                <th>Email</th>
+                <th>City</th>
+                <th>Website</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for lead in leads %}
+            <tr>
+                <td><input type="checkbox" class="lead-checkbox" value="{{ lead.id }}"></td>
+                <td><strong>{{ lead.business_name }}</strong></td>
+                <td>{{ lead.business_type or '-' }}</td>
+                <td>{{ lead.email or '-' }}</td>
+                <td>{{ lead.city or '-' }}</td>
+                <td>
+                    {% if lead.website %}
+                        <a href="{{ lead.website }}" target="_blank">Visit</a>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    {% if lead.email_sent %}
+                        <span class="badge badge-success">Sent</span>
+                    {% elif lead.email %}
+                        <span class="badge badge-info">Has Email</span>
+                    {% else %}
+                        <span class="badge badge-warning">No Email</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <form action="/leads/delete/{{ lead.id }}" method="POST" style="display: inline;">
+                        <button type="submit" class="btn btn-danger" style="padding: 5px 10px;" onclick="return confirm('Delete this lead?')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if total > per_page %}
+    <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px;">
+        {% if page > 1 %}
+        <a href="/leads?page={{ page - 1 }}&status={{ status }}" class="btn btn-secondary">Previous</a>
+        {% endif %}
+        <span style="padding: 10px;">Page {{ page }} of {{ (total / per_page) | ceil }}</span>
+        {% if page * per_page < total %}
+        <a href="/leads?page={{ page + 1 }}&status={{ status }}" class="btn btn-secondary">Next</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<div style="margin-top: 20px;">
+    <button class="btn btn-primary" id="sendSelectedBtn" disabled onclick="sendSelectedLeads()">Send to Selected</button>
+    <button class="btn btn-secondary" onclick="verifySelectedEmails()">Verify Selected Emails</button>
+</div>
+
+<!-- Add Lead Modal -->
+<div class="modal" id="addLeadModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Add New Lead</h2>
+            <button class="close" onclick="closeModal('addLeadModal')">&times;</button>
+        </div>
+        <form action="/leads/add" method="POST">
+            <div class="form-group">
+                <label>Business Name *</label>
+                <input type="text" name="business_name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Business Type</label>
+                <select name="business_type" class="form-control">
+                    <option value="">Select type...</option>
+                    <option value="restaurants">Restaurants</option>
+                    <option value="dentists">Dentists</option>
+                    <option value="plumbers">Plumbers</option>
+                    <option value="electricians">Electricians</option>
+                    <option value="landscaping">Landscaping</option>
+                    <option value="cleaning services">Cleaning Services</option>
+                    <option value="auto repair">Auto Repair</option>
+                    <option value="real estate agents">Real Estate Agents</option>
+                    <option value="lawyers">Lawyers</option>
+                    <option value="accountants">Accountants</option>
+                    <option value="gyms">Gyms</option>
+                    <option value="salons">Salons</option>
+                    <option value="spas">Spas</option>
+                    <option value="photographers">Photographers</option>
+                    <option value="roofers">Roofers</option>
+                    <option value="painters">Painters</option>
+                    <option value="movers">Movers</option>
+                    <option value="hvac">HVAC</option>
+                </select>
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" name="email" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="tel" name="phone" class="form-control">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Website</label>
+                <input type="url" name="website" class="form-control" placeholder="https://...">
+            </div>
+            <div class="form-group">
+                <label>Address</label>
+                <input type="text" name="address" class="form-control">
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>City</label>
+                    <input type="text" name="city" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>State</label>
+                    <input type="text" name="state" class="form-control">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Add Lead</button>
+        </form>
+    </div>
+</div>
+
+<!-- Import CSV Modal -->
+<div class="modal" id="importLeadsModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Import Leads from CSV</h2>
+            <button class="close" onclick="closeModal('importLeadsModal')">&times;</button>
+        </div>
+        <form action="/leads/import" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label>CSV File</label>
+                <input type="file" name="csv_file" class="form-control" accept=".csv" required>
+                <small style="color: #666;">Columns: business_name, business_type, email, phone, website, city, state</small>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Import</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Select all checkbox
+    document.getElementById('selectAll').addEventListener('change', function() {
+        document.querySelectorAll('.lead-checkbox').forEach(cb => {
+            cb.checked = this.checked;
+        });
+        updateSendButton();
+    });
+
+    // Update send button state
+    document.querySelectorAll('.lead-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateSendButton);
+    });
+
+    function updateSendButton() {
+        const checked = document.querySelectorAll('.lead-checkbox:checked').length;
+        document.getElementById('sendSelectedBtn').disabled = checked === 0;
+    }
+
+    function sendSelectedLeads() {
+        const leadIds = Array.from(document.querySelectorAll('.lead-checkbox:checked')).map(cb => parseInt(cb.value));
+        if (confirm(`Send emails to ${leadIds.length} leads?`)) {
+            apiCall('/api/send', 'POST', { lead_ids: leadIds }).then(result => {
+                alert(JSON.stringify(result));
+                location.reload();
+            });
+        }
+    }
+
+    function verifySelectedEmails() {
+        const leadIds = Array.from(document.querySelectorAll('.lead-checkbox:checked')).map(cb => parseInt(cb.value));
+        alert(`Verify emails for ${leadIds.length} leads (feature coming soon)`);
+    }
+</script>
+{% endblock %}

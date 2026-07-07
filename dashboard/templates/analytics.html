@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - Email Outreach System{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>Analytics</h1>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <h3>Total Sent</h3>
+        <div class="value">{{ total_sent }}</div>
+    </div>
+    <div class="stat-card">
+        <h3>Total Opened</h3>
+        <div class="value">{{ total_opened }}</div>
+        <div class="change">{{ open_rate | round(1) }}% open rate</div>
+    </div>
+    <div class="stat-card">
+        <h3>Total Replied</h3>
+        <div class="value">{{ total_replied }}</div>
+        <div class="change">{{ reply_rate | round(1) }}% reply rate</div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Email Activity (Last 30 Days)</h2>
+    <div id="chart" style="height: 300px; display: flex; align-items: flex-end; gap: 2px; padding: 20px;">
+        {% for day in daily_stats %}
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;">
+            <div style="width: 100%; background: #4CAF50; border-radius: 2px 2px 0 0; min-height: {{ (day.sent * 5) if day.sent > 0 else 1 }}px;" title="Sent: {{ day.sent }}"></div>
+            <div style="width: 100%; background: #2196F3; border-radius: 2px 2px 0 0; min-height: {{ (day.opened * 5) if day.opened > 0 else 1 }}px;" title="Opened: {{ day.opened }}"></div>
+            <div style="font-size: 9px; color: #999; writing-mode: vertical-rl; text-orientation: mixed; height: 40px;">{{ day.date[5:] }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    <div style="display: flex; gap: 20px; justify-content: center; margin-top: 10px;">
+        <span><span style="display: inline-block; width: 12px; height: 12px; background: #4CAF50; border-radius: 2px;"></span> Sent</span>
+        <span><span style="display: inline-block; width: 12px; height: 12px; background: #2196F3; border-radius: 2px;"></span> Opened</span>
+    </div>
+</div>
+{% endblock %}

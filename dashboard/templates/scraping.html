@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Scraping - Email Outreach System{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>Lead Scraping</h1>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <h2>Start New Scrape</h2>
+        <form id="scrapeForm">
+            <div class="form-group">
+                <label>Source</label>
+                <select name="source" class="form-control" id="scrapeSource">
+                    <option value="google_maps">Google Maps</option>
+                    <option value="yelp">Yelp</option>
+                    <option value="directory">Business Directories</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Business Category</label>
+                <select name="category" class="form-control" required>
+                    <option value="">Select category...</option>
+                    <option value="restaurants">Restaurants</option>
+                    <option value="dentists">Dentists</option>
+                    <option value="plumbers">Plumbers</option>
+                    <option value="electricians">Electricians</option>
+                    <option value="landscaping">Landscaping</option>
+                    <option value="cleaning services">Cleaning Services</option>
+                    <option value="auto repair">Auto Repair</option>
+                    <option value="real estate agents">Real Estate Agents</option>
+                    <option value="lawyers">Lawyers</option>
+                    <option value="accountants">Accountants</option>
+                    <option value="gyms">Gyms</option>
+                    <option value="salons">Salons</option>
+                    <option value="spas">Spas</option>
+                    <option value="photographers">Photographers</option>
+                    <option value="roofers">Roofers</option>
+                    <option value="painters">Painters</option>
+                    <option value="movers">Movers</option>
+                    <option value="hvac">HVAC</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Location</label>
+                <input type="text" name="location" class="form-control" placeholder="e.g., New York, NY" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Start Scraping</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Quick Scrape Templates</h2>
+        <p style="color: #666; margin-bottom: 15px;">Click a template to start scraping</p>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button class="btn btn-secondary" onclick="quickScrape('restaurants', 'New York, NY')">
+                Restaurants in NYC
+            </button>
+            <button class="btn btn-secondary" onclick="quickScrape('dentists', 'Los Angeles, CA')">
+                Dentists in LA
+            </button>
+            <button class="btn btn-secondary" onclick="quickScrape('plumbers', 'Chicago, IL')">
+                Plumbers in Chicago
+            </button>
+            <button class="btn btn-secondary" onclick="quickScrape('electricians', 'Houston, TX')">
+                Electricians in Houston
+            </button>
+            <button class="btn btn-secondary" onclick="quickScrape('landscaping', 'Phoenix, AZ')">
+                Landscaping in Phoenix
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+    <h2>Recent Scraping Sessions</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Source</th>
+                <th>Category</th>
+                <th>Location</th>
+                <th>Leads Found</th>
+                <th>Status</th>
+                <th>Started</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for session in sessions %}
+            <tr>
+                <td>{{ session.source }}</td>
+                <td>{{ session.category }}</td>
+                <td>{{ session.location or '-' }}</td>
+                <td>{{ session.leads_found }}</td>
+                <td>
+                    <span class="badge badge-{{ 'success' if session.status == 'completed' else 'warning' if session.status == 'running' else 'danger' }}">
+                        {{ session.status }}
+                    </span>
+                </td>
+                <td>{{ session.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    document.getElementById('scrapeForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData);
+
+        fetch('/scraping/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(res => res.json())
+        .then(result => {
+            alert(`Scraping started! Source: ${result.source}, Category: ${result.category}`);
+            location.reload();
+        });
+    });
+
+    function quickScrape(category, location) {
+        if (confirm(`Start scraping ${category} in ${location}?`)) {
+            fetch('/scraping/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ source: 'google_maps', category, location })
+            })
+            .then(res => res.json())
+            .then(result => {
+                alert('Scraping started! Check the sessions table for progress.');
+                location.reload();
+            });
+        }
+    }
+</script>
+{% endblock %}

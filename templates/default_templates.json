@@ -1,0 +1,28 @@
+{
+    "templates": [
+        {
+            "name": "restaurants_v1",
+            "business_type": "restaurants",
+            "subject": "Quick question about {{ business_name }}'s online ordering",
+            "body": "{{ greeting }}\n\nI noticed {{ business_name }} and wanted to reach out about your online presence.\n\nMany restaurants in {{ city }} are missing out on significant revenue by not having a professional online ordering system. Here's how a modern website can help:\n\n{% for benefit in benefits %}\n- {{ benefit }}\n{% endfor %}\n\nI've helped restaurants like yours increase their online orders by 40-60% with a professional website that includes:\n- Online ordering integration\n- Mobile-friendly design\n- Google Maps visibility\n- Customer reviews showcase\n\n{{ cta_text }}\n\nBest,\n{{ sender_name }}\n{{ sender_email }}"
+        },
+        {
+            "name": "dentists_v1",
+            "business_type": "dentists",
+            "subject": "Attract more patients to {{ business_name }}",
+            "body": "{{ greeting }}\n\nI specialize in creating professional websites for dental practices like {{ business_name }}.\n\nIn today's digital world, 80% of patients research dentists online before booking an appointment. Here's what a modern website can do for your practice:\n\n{% for benefit in benefits %}\n- {{ benefit }}\n{% endfor %}\n\nI'd love to show you how your competitors' websites compare and identify opportunities for {{ business_name }}.\n\n{{ cta_text }}\n\nBest,\n{{ sender_name }}\n{{ sender_email }}"
+        },
+        {
+            "name": "plumbers_v1",
+            "business_type": "plumbers",
+            "subject": "Get more emergency calls for {{ business_name }}",
+            "body": "{{ greeting }}\n\nI noticed {{ business_name }} and wanted to help you get more emergency plumbing calls.\n\nWhen someone has a plumbing emergency, they Google it immediately. If you're not showing up, they're calling your competitors.\n\nHere's how a professional website can help:\n\n{% for benefit in benefits %}\n- {{ benefit }}\n{% endfor %}\n\nI've helped plumbing companies increase their emergency calls by 50% with:\n- 24/7 online booking\n- Service area mapping\n- Customer testimonials\n- Mobile-first design\n\n{{ cta_text }}\n\nBest,\n{{ sender_name }}\n{{ sender_email }}"
+        },
+        {
+            "name": "default_v1",
+            "business_type": null,
+            "subject": "Quick question about {{ business_name }}'s online presence",
+            "body": "{{ greeting }}\n\n{{ website_quality_note }}. As a web designer, I've helped many businesses in {{ city }} improve their online presence and attract more customers.\n\nHere are some benefits a professional website can bring to your business:\n\n{% for benefit in benefits %}\n- {{ benefit }}\n{% endfor %}\n\nI'd love to discuss how we can help {{ business_name }} stand out online.\n\n{{ cta_text }}\n\nBest,\n{{ sender_name }}\n{{ sender_email }}"
+        }
+    ]
+}

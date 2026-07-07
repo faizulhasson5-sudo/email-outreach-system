@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Campaigns - Email Outreach System{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>Campaigns</h1>
+    <button class="btn btn-primary" onclick="openModal('createCampaignModal')">+ New Campaign</button>
+</div>
+
+<div class="card">
+    {% if campaigns %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Total Leads</th>
+                <th>Sent</th>
+                <th>Opened</th>
+                <th>Replied</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for campaign in campaigns %}
+            <tr>
+                <td><strong>{{ campaign.name }}</strong></td>
+                <td>
+                    <span class="badge badge-{{ 'success' if campaign.status == 'active' else 'warning' if campaign.status == 'draft' else 'info' }}">
+                        {{ campaign.status }}
+                    </span>
+                </td>
+                <td>{{ campaign.total_leads }}</td>
+                <td>{{ campaign.emails_sent }}</td>
+                <td>{{ campaign.emails_opened }}</td>
+                <td>{{ campaign.emails_replied }}</td>
+                <td>{{ campaign.created_at.strftime('%Y-%m-%d') }}</td>
+                <td>
+                    {% if campaign.status == 'draft' %}
+                    <button class="btn btn-primary" style="padding: 5px 10px;" onclick="sendCampaign({{ campaign.id }})">Send</button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="text-align: center; padding: 40px; color: #666;">No campaigns yet. Create your first campaign to get started!</p>
+    {% endif %}
+</div>
+
+<!-- Create Campaign Modal -->
+<div class="modal" id="createCampaignModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Create New Campaign</h2>
+            <button class="close" onclick="closeModal('createCampaignModal')">&times;</button>
+        </div>
+        <form action="/campaigns/create" method="POST">
+            <div class="form-group">
+                <label>Campaign Name *</label>
+                <input type="text" name="name" class="form-control" required placeholder="e.g., Restaurant Outreach - NYC">
+            </div>
+            <div class="form-group">
+                <label>Email Template</label>
+                <select name="template_id" class="form-control">
+                    <option value="">Use default template</option>
+                    <!-- Templates will be loaded dynamically -->
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Number of Leads to Email</label>
+                <input type="number" name="total_leads" class="form-control" value="100">
+                <small style="color: #666;">Maximum number of emails to send in this campaign</small>
+            </div>
+            <div class="form-group">
+                <label>Target Business Type</label>
+                <select name="business_type" class="form-control">
+                    <option value="">All business types</option>
+                    <option value="restaurants">Restaurants</option>
+                    <option value="dentists">Dentists</option>
+                    <option value="plumbers">Plumbers</option>
+                    <option value="electricians">Electricians</option>
+                    <option value="landscaping">Landscaping</option>
+                    <option value="cleaning services">Cleaning Services</option>
+                    <option value="auto repair">Auto Repair</option>
+                    <option value="real estate agents">Real Estate Agents</option>
+                    <option value="lawyers">Lawyers</option>
+                    <option value="accountants">Accountants</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Create Campaign</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function sendCampaign(campaignId) {
+        if (confirm('Start sending emails for this campaign?')) {
+            fetch(`/campaigns/${campaignId}/send`, { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    alert(`Campaign sent! Results: ${data.sent} sent, ${data.failed} failed`);
+                    location.reload();
+                });
+        }
+    }
+</script>
+{% endblock %}

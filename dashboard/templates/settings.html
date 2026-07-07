@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Email Outreach System{% endblock %}
+
+{% block content %}
+<div class="header">
+    <h1>Settings</h1>
+</div>
+
+<div class="card">
+    <h2>SMTP Configuration</h2>
+    <form id="settingsForm">
+        <div class="grid-2">
+            <div class="form-group">
+                <label>SMTP Server</label>
+                <input type="text" name="smtp_server" class="form-control" value="{{ config.SMTP_SERVER }}">
+            </div>
+            <div class="form-group">
+                <label>SMTP Port</label>
+                <input type="number" name="smtp_port" class="form-control" value="{{ config.SMTP_PORT }}">
+            </div>
+        </div>
+        <div class="grid-2">
+            <div class="form-group">
+                <label>Username (Email)</label>
+                <input type="email" name="smtp_username" class="form-control" value="{{ config.SMTP_USERNAME }}">
+            </div>
+            <div class="form-group">
+                <label>Password (App Password)</label>
+                <input type="password" name="smtp_password" class="form-control" value="{{ config.SMTP_PASSWORD }}">
+            </div>
+        </div>
+        <div class="grid-2">
+            <div class="form-group">
+                <label>Sender Email</label>
+                <input type="email" name="sender_email" class="form-control" value="{{ config.SENDER_EMAIL }}">
+            </div>
+            <div class="form-group">
+                <label>Sender Name</label>
+                <input type="text" name="sender_name" class="form-control" value="{{ config.SENDER_NAME }}">
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h2>Email Limits</h2>
+    <form id="limitsForm">
+        <div class="grid-3">
+            <div class="form-group">
+                <label>Emails Per Day</label>
+                <input type="number" name="emails_per_day" class="form-control" value="{{ config.EMAILS_PER_DAY }}">
+            </div>
+            <div class="form-group">
+                <label>Delay Between Emails (seconds)</label>
+                <input type="number" name="email_delay" class="form-control" value="{{ config.EMAIL_DELAY }}" step="0.1">
+            </div>
+            <div class="form-group">
+                <label>Max Leads Per Search</label>
+                <input type="number" name="max_leads" class="form-control" value="{{ config.MAX_LEADS_PER_SEARCH }}">
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h2>Tracking</h2>
+    <form id="trackingForm">
+        <div class="grid-2">
+            <div class="form-group">
+                <label>Enable Tracking</label>
+                <select name="tracking_enabled" class="form-control">
+                    <option value="True" {% if config.TRACKING_ENABLED %}selected{% endif %}>Yes</option>
+                    <option value="False" {% if not config.TRACKING_ENABLED %}selected{% endif %}>No</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Tracking Domain</label>
+                <input type="text" name="tracking_domain" class="form-control" value="{{ config.TRACKING_DOMAIN }}">
+            </div>
+        </div>
+    </form>
+</div>
+
+<div style="margin-top: 20px;">
+    <button class="btn btn-primary" onclick="saveSettings()">Save All Settings</button>
+</div>
+
+<script>
+async function saveSettings() {
+    const formData = new FormData(document.getElementById('settingsForm'));
+    const limitsData = new FormData(document.getElementById('limitsForm'));
+    const trackingData = new FormData(document.getElementById('trackingForm'));
+    
+    const allData = {};
+    for (let [key, value] of formData.entries()) allData[key] = value;
+    for (let [key, value] of limitsData.entries()) allData[key] = value;
+    for (let [key, value] of trackingData.entries()) allData[key] = value;
+    
+    try {
+        const response = await fetch('/settings/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(allData)
+        });
+        const result = await response.json();
+        if (result.status === 'saved') {
+            alert('Settings saved successfully!');
+        }
+    } catch (error) {
+        alert('Error saving settings: ' + error.message);
+    }
+}
+</script>
+{% endblock %}
